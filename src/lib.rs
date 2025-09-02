@@ -45,16 +45,6 @@ impl<T> FileBackedValue<T>
         self.value.take()
     }
 
-    /// Take the current value, which might be None if the backing file does not yet exist.
-    /// Leaves the stored value empty, requiring recomputation the next time a value is get.
-    pub fn take(&mut self) -> Option<T> {
-        if self.value.is_none() || self.file_is_dirty() {
-            // The backing file has not been read before or has become dirty.
-            self.value = self.read_file();
-        }
-        self.value.take()
-    }
-
     /// Get the current value, which might be None if the backing file does not yet exist.
     pub fn get(&mut self) -> Option<&T> {
         if self.value.is_none() || self.file_is_dirty() {
