@@ -43,7 +43,7 @@ impl<T> FileBackedValue<T>
         }
     }
 
-    pub fn get_path(&self) -> PathBuf {
+    pub fn path(&self) -> PathBuf {
         self.dir.join(&self.filename)
     }
 
@@ -110,7 +110,7 @@ impl<T> FileBackedValue<T>
 
     /// Read a value of type `T` from the backing file as a JSON string.
     fn read_file(&self) -> Option<T> {
-        let path = self.get_path();
+        let path = self.path();
         if let Ok(file) = OpenOptions::new().read(true).open(path) {
             let rdr = BufReader::new(file);
             serde_json::from_reader(rdr).ok()
@@ -124,7 +124,7 @@ impl<T> FileBackedValue<T>
         // Create parent directories if necessary.
         let _ = fs::create_dir_all(&self.dir);
 
-        let path = self.get_path();
+        let path = self.path();
         let file = OpenOptions::new().create_new(true).write(true).open(path).ok()?;
         let wtr = BufWriter::new(file);
         serde_json::to_writer(wtr, value).ok()
@@ -134,7 +134,7 @@ impl<T> FileBackedValue<T>
     /// If the file does not exist or the modification time could otherwise not be retrieved, true is returned.
     fn file_is_dirty(&self) -> bool {
         self.dirty_time.is_some_and(|dirty_time|
-            file_needs_recomputation(&self.get_path(), dirty_time))
+            file_needs_recomputation(&self.path(), dirty_time))
     }
 }
 
