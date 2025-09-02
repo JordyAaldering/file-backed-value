@@ -62,7 +62,7 @@ impl<T> FileBackedValue<T>
             // The file has not been read before; read it now and store the value.
             // The file must exists because otherwise it will have been marked as dirty.
             let value = self.read_file().unwrap();
-            self.insert(value)
+            self.value.insert(value)
         } else {
             // The file is not dirty, return the current value if it exists.
             self.value.as_ref().unwrap()
@@ -79,7 +79,7 @@ impl<T> FileBackedValue<T>
             // The file has not been read before; read it now and store the value.
             // The file must exists because otherwise it will have been marked as dirty.
             let value = self.read_file().unwrap();
-            self.insert(value)
+            self.value.insert(value)
         } else {
             // The file is not dirty, return the current value if it exists.
             self.value.as_ref().unwrap()
