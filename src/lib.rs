@@ -21,7 +21,7 @@ pub struct FileBackedValue<T>
 //pub type FileBackedValueResult<T> = Result<FileBackedValue<T>, FileBackedValueError>;
 
 // TODO: increase safety by getting rid of some unwraps.
-impl<T> FileBackedValue<T>
+pub impl<T> FileBackedValue<T>
     where T: Serialize + DeserializeOwned
 {
     pub fn new(path: PathBuf) -> Self {
