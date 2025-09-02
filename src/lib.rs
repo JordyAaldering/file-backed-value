@@ -1,7 +1,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::{BufReader, BufWriter},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 
@@ -10,7 +10,8 @@ use serde::{de::DeserializeOwned, Serialize};
 pub struct FileBackedValue<T>
     where T: Serialize + DeserializeOwned
 {
-    path: PathBuf,
+    dir: PathBuf,
+    filename: String,
     value: Option<T>,
     dirty_time: Option<Duration>,
 }
@@ -24,12 +25,26 @@ pub struct FileBackedValue<T>
 impl<T> FileBackedValue<T>
     where T: Serialize + DeserializeOwned
 {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(filename: &str) -> Self {
         Self {
-            path,
+            dir: PathBuf::from(directories::BaseDirs::new().expect("No valid home directory found").data_dir()),
+            filename: sanitize_filename::sanitize(filename),
             value: None,
             dirty_time: None,
         }
+    }
+
+    pub fn new_at(filename: &str, dir: &Path) -> Self {
+        Self {
+            dir: PathBuf::from(dir),
+            filename: sanitize_filename::sanitize(filename),
+            value: None,
+            dirty_time: None,
+        }
+    }
+
+    pub fn get_path(&self) -> PathBuf {
+        self.dir.join(&self.filename)
     }
 
     /// If the time since the file was last edited is longer ago than `dirty_time`,
@@ -95,7 +110,8 @@ impl<T> FileBackedValue<T>
 
     /// Read a value of type `T` from the backing file as a JSON string.
     fn read_file(&self) -> Option<T> {
-        if let Ok(file) = OpenOptions::new().read(true).open(&self.path) {
+        let path = self.get_path();
+        if let Ok(file) = OpenOptions::new().read(true).open(path) {
             let rdr = BufReader::new(file);
             serde_json::from_reader(rdr).ok()
         } else {
@@ -106,11 +122,10 @@ impl<T> FileBackedValue<T>
     /// Write `value` to the backing file as a JSON string.
     fn write_file(&self, value: &T) -> Option<()> {
         // Create parent directories if necessary.
-        if let Some(dir) = self.path.parent() {
-            fs::create_dir_all(dir).unwrap();
-        }
+        let _ = fs::create_dir_all(&self.dir);
 
-        let file = OpenOptions::new().create_new(true).write(true).open(&self.path).ok()?;
+        let path = self.get_path();
+        let file = OpenOptions::new().create_new(true).write(true).open(path).ok()?;
         let wtr = BufWriter::new(file);
         serde_json::to_writer(wtr, value).ok()
     }
@@ -119,19 +134,19 @@ impl<T> FileBackedValue<T>
     /// If the file does not exist or the modification time could otherwise not be retrieved, true is returned.
     fn file_is_dirty(&self) -> bool {
         self.dirty_time.is_some_and(|dirty_time|
-            file_needs_recomputation(&self.path, dirty_time))
+            file_needs_recomputation(&self.get_path(), dirty_time))
     }
 }
 
 /// Check whether the file at `path` was last modified longer than `dirty_time` ago.
 /// If the file does not exist or the modification time could otherwise not be retrieved, true is returned.
-fn file_needs_recomputation(path: &PathBuf, dirty_time: Duration) -> bool {
+fn file_needs_recomputation(path: &Path, dirty_time: Duration) -> bool {
     time_since_last_modified(path).is_none_or(|last_modified|
         last_modified >= dirty_time)
 }
 
 /// Get the duration since the file at `path` was last modified.
-fn time_since_last_modified(path: &PathBuf) -> Option<Duration> {
+fn time_since_last_modified(path: &Path) -> Option<Duration> {
     if let Ok(time) = fs::metadata(path) {
         let now = SystemTime::now();
         let last_modified = time.modified().ok()?;
