@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File},
+    fs::{self, OpenOptions},
     io::{BufReader, BufWriter},
     path::PathBuf,
     time::{Duration, SystemTime},
@@ -21,7 +21,7 @@ pub struct FileBackedValue<T>
 //pub type FileBackedValueResult<T> = Result<FileBackedValue<T>, FileBackedValueError>;
 
 // TODO: increase safety by getting rid of some unwraps.
-pub impl<T> FileBackedValue<T>
+impl<T> FileBackedValue<T>
     where T: Serialize + DeserializeOwned
 {
     pub fn new(path: PathBuf) -> Self {
@@ -95,7 +95,7 @@ pub impl<T> FileBackedValue<T>
 
     /// Read a value of type `T` from the backing file as a JSON string.
     fn read_file(&self) -> Option<T> {
-        if let Ok(file) = File::open(&self.path) {
+        if let Ok(file) = OpenOptions::new().read(true).open(&self.path) {
             let rdr = BufReader::new(file);
             serde_json::from_reader(rdr).ok()
         } else {
@@ -105,7 +105,12 @@ pub impl<T> FileBackedValue<T>
 
     /// Write `value` to the backing file as a JSON string.
     fn write_file(&self, value: &T) -> Option<()> {
-        let file = File::open(&self.path).ok()?;
+        // Create parent directories if necessary.
+        if let Some(dir) = self.path.parent() {
+            fs::create_dir_all(dir).unwrap();
+        }
+
+        let file = OpenOptions::new().create_new(true).write(true).open(&self.path).ok()?;
         let wtr = BufWriter::new(file);
         serde_json::to_writer(wtr, value).ok()
     }
