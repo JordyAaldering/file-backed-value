@@ -2,6 +2,10 @@
 name = "file-backed-value"
 version = "0.1.0"
 edition = "2024"
+description = "Simple lazily generated persistent values backed by a file, with the option to require a recomputation after a certain amount of time."
+repository = "https://github.com/JordyAaldering/file-backed-value"
+license = "GPL-3.0"
+readme = "README.md"
 
 [dependencies]
 directories = "6.0.0"
