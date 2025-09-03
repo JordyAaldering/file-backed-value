@@ -45,8 +45,15 @@ impl<T> FileBackedValue<T>
         }
     }
 
+    /// Path to the backing file.
     pub fn path(&self) -> PathBuf {
         self.dir.join(&self.filename)
+    }
+
+    /// Clear the currently stored value and remove the backing file.
+    pub fn clear(&mut self) -> io::Result<()> {
+        self.value = None;
+        fs::remove_file(self.path())
     }
 
     /// If the time since the file was last edited is longer ago than `dirty_time`,
