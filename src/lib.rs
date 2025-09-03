@@ -1,6 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io::{BufReader, BufWriter},
+    io::{self, BufReader, BufWriter},
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -16,12 +16,14 @@ pub struct FileBackedValue<T>
     dirty_time: Option<Duration>,
 }
 
-// TODO: create error type to replace the Options
-//pub enum FileBackedValueError {}
+#[derive(Debug)]
+pub enum FileBackedValueError {
+    FileError(io::Error),
+    JsonError(serde_json::Error),
+}
 
-//pub type FileBackedValueResult<T> = Result<FileBackedValue<T>, FileBackedValueError>;
+pub type FileBackedValueResult<T> = Result<T, FileBackedValueError>;
 
-// TODO: increase safety by getting rid of some unwraps.
 impl<T> FileBackedValue<T>
     where T: Serialize + DeserializeOwned
 {
@@ -61,43 +63,43 @@ impl<T> FileBackedValue<T>
     }
 
     /// Get the current value, which might be None if the backing file does not yet exist.
-    pub fn get(&mut self) -> Option<&T> {
+    pub fn get(&mut self) -> FileBackedValueResult<Option<&T>> {
         if self.value.is_none() || self.file_is_dirty() {
             // The backing file has not been read before or has become dirty.
-            self.value = self.read_file();
+            self.value = self.read_file()?;
         }
-        self.value.as_ref()
+        Ok(self.value.as_ref())
     }
 
-    pub fn get_or_insert(&mut self, default: T) -> &T {
+    pub fn get_or_insert(&mut self, default: T) -> FileBackedValueResult<&T> {
         if self.file_is_dirty() {
             // If the file is dirty, recompute even if we already have a value.
-            self.insert(default)
+            Ok(self.insert(default))
         } else if self.value.is_none() {
             // The file has not been read before; read it now and store the value.
             // The file must exists because otherwise it will have been marked as dirty.
-            let value = self.read_file().unwrap();
-            self.value.insert(value)
+            let value = self.read_file()?.unwrap();
+            Ok(self.value.insert(value))
         } else {
             // The file is not dirty, return the current value if it exists.
-            self.value.as_ref().unwrap()
+            Ok(self.value.as_ref().unwrap())
         }
     }
 
-    pub fn get_or_insert_with<F>(&mut self, default: F) -> &T
+    pub fn get_or_insert_with<F>(&mut self, default: F) -> FileBackedValueResult<&T>
         where F: FnOnce() -> T
     {
         if self.file_is_dirty() {
             // If the file is dirty, recompute even if we already have a value.
-            self.insert((default)())
+            Ok(self.insert((default)()))
         } else if self.value.is_none() {
             // The file has not been read before; read it now and store the value.
             // The file must exists because otherwise it will have been marked as dirty.
-            let value = self.read_file().unwrap();
-            self.value.insert(value)
+            let value = self.read_file()?.unwrap();
+            Ok(self.value.insert(value))
         } else {
             // The file is not dirty, return the current value if it exists.
-            self.value.as_ref().unwrap()
+            Ok(self.value.as_ref().unwrap())
         }
     }
 
@@ -109,25 +111,31 @@ impl<T> FileBackedValue<T>
     }
 
     /// Read a value of type `T` from the backing file as a JSON string.
-    fn read_file(&self) -> Option<T> {
-        let path = self.path();
-        if let Ok(file) = OpenOptions::new().read(true).open(path) {
-            let rdr = BufReader::new(file);
-            serde_json::from_reader(rdr).ok()
-        } else {
-            None
+    fn read_file(&self) -> FileBackedValueResult<Option<T>> {
+        match OpenOptions::new().read(true).open(self.path()) {
+            Ok(f) => {
+                let rdr = BufReader::new(f);
+                serde_json::from_reader(rdr)
+                    .map_err(|e| FileBackedValueError::JsonError(e))
+                    .map(|json| Some(json))
+            },
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(FileBackedValueError::FileError(e))
         }
     }
 
     /// Write `value` to the backing file as a JSON string.
-    fn write_file(&self, value: &T) -> Option<()> {
+    fn write_file(&self, value: &T) -> FileBackedValueResult<()> {
         // Create parent directories if necessary.
-        let _ = fs::create_dir_all(&self.dir);
+        fs::create_dir_all(&self.dir)
+            .map_err(|e| FileBackedValueError::FileError(e))?;
 
         let path = self.path();
-        let file = OpenOptions::new().create_new(true).write(true).open(path).ok()?;
+        let file = OpenOptions::new().create_new(true).write(true).open(path)
+            .map_err(|e| FileBackedValueError::FileError(e))?;
         let wtr = BufWriter::new(file);
-        serde_json::to_writer(wtr, value).ok()
+        serde_json::to_writer(wtr, value)
+            .map_err(|e| FileBackedValueError::JsonError(e))
     }
 
     /// Check whether the backing file was last modified longer than `dirty_time` ago.
