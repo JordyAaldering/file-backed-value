@@ -138,7 +138,7 @@ impl<T> FileBackedValue<T>
             .map_err(|e| FileBackedValueError::FileError(e))?;
 
         let path = self.path();
-        let file = OpenOptions::new().create_new(true).write(true).open(path)
+        let file = OpenOptions::new().create_new(true).write(true).truncate(true).open(path)
             .map_err(|e| FileBackedValueError::FileError(e))?;
         let wtr = BufWriter::new(file);
         serde_json::to_writer(wtr, value)
