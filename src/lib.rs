@@ -1,9 +1,9 @@
-use std::{fs, io::{self, BufReader, BufWriter}, path::PathBuf, time::{Duration, SystemTime}};
+use std::{fs, io::{self, BufReader, BufWriter}, path::{Path, PathBuf}, time::{Duration, SystemTime}};
 
 use serde::{de::DeserializeOwned, Serialize};
 
-pub struct FileBackedValue
-{
+#[derive(Clone, Debug)]
+pub struct FileBackedValue {
     path: PathBuf,
     dirty_time: Option<Duration>,
 }
@@ -34,7 +34,7 @@ impl FileBackedValue
     }
 
     /// Create a file-backed value in the specified directory.
-    pub fn new_at(filename: &str, parent: &str) -> Self {
+    pub fn new_at(filename: &str, parent: &Path) -> Self {
         let parent = PathBuf::from(parent);
         let filename = sanitize_filename::sanitize(filename);
         Self {
