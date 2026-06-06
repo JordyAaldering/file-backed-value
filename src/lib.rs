@@ -148,7 +148,7 @@ where
     }
 
     let file = fs::OpenOptions::new()
-        .create_new(true)
+        .create(true)
         .write(true)
         .truncate(true)
         .open(path)
